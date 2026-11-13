@@ -4,3 +4,8 @@ logs/
 hidden/
 __pycache__/
 *.pyc
+# local evaluation outputs (never part of the submission)
+Project_3/starter_pack/ho*.csv
+Project_3/starter_pack/ho*.jsonl
+Project_3/starter_pack/*_fast.csv
+Project_3/starter_pack/surprise_dev.csv

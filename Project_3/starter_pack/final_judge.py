@@ -8,8 +8,9 @@ Recipe (see RECIPE.md):
      whether the criterion counts it as a violation. JSON, parsed leniently.
   3. Code keeps only flagged statements that are backed by evidence (quote really is in the reply, at least one
      concrete deviation). None left -> pass (1 call).
-  4. Call 2 (VERIFY): an independent check of only the flagged statements. Confirmed -> fail.
-     Call 3 (TIE-BREAK, only when calls 1 and 2 disagree): a third, differently framed check; majority decides.
+  4. Call 2 (VERIFY): an independent check of only the flagged statements. Confirmed as wrong_or_misleading AND
+     violating the criterion -> fail; otherwise pass. Call 3 only if call 2's answer cannot be parsed.
+  Precision guard: "incomplete but accurate" (the reply leaves out other policy information) is never a violation.
 Nothing here names a criterion, edit type, language, policy clause or number: behaviour comes from the inputs.
 
 Entry points used by run_judge.py: prepare(criterion, policy, dev_pairs) and judge(question, reply, lang, criterion,
@@ -281,14 +282,19 @@ or branches than the policy.
    - other_detail_differs: any other detail (who, which card, which channel, where, when, how, what is included) \
 differs from the policy.
    - favours: if anything differs, whom the difference favours: "customer", "company" or "neither".
-4. violates_criterion: apply the criterion's own pass/fail definition and exclusions literally to this statement, \
-guided by the labelled examples. Mark true only for a concrete deviation you can name.
+4. status: "accurate" (says what the policy says), "incomplete_but_accurate" (true as far as it goes; it only \
+leaves out OTHER information the policy also contains) or "wrong_or_misleading" (a customer who relies on this \
+statement would be misled about what the policy provides: wrong value, a dropped condition that gates exactly what \
+the statement asserts, more or less certainty, wider or narrower scope, a different detail). A reply never has to \
+repeat the whole policy: not mentioning a rule, a fee, an option or a detail is NOT an error by itself.
+5. violates_criterion: true only if status is "wrong_or_misleading" AND the criterion's own pass/fail definition and \
+exclusions count that deviation, guided by the labelled examples. Most good replies have no violation at all.
 
 Answer with JSON only, no prose:
 {{"statements": [{{"reply_quote": "<verbatim span of the reply>", "policy_quote": "<verbatim policy text or empty>", \
 "number_differs": false, "condition_dropped": false, "more_certain": false, "less_certain": false, \
 "wider_scope": false, "narrower_scope": false, "other_detail_differs": false, "favours": "neither", \
-"violates_criterion": false, "reason": "<max 20 words>"}}]}}"""
+"status": "accurate", "violates_criterion": false, "reason": "<max 20 words>"}}]}}"""
 
 VERIFY = _HEADER + _CASE + """
 A first reviewer says these statements of the reply violate the criterion:
@@ -299,11 +305,15 @@ Check each one independently; the first reviewer may be right or wrong. For each
 - write exactly what the reply commits the company to in that statement (include any condition it keeps);
 - list the concrete differences between the two (a condition or limitation the policy attaches but the reply drops \
 counts as a difference; a policy rule the reply does not talk about at all does not);
-- decide whether, by the criterion's own definition and exclusions, those differences make the reply fail.
+- classify the statement: "accurate", "incomplete_but_accurate" (it only leaves out OTHER information; a reply \
+never has to repeat the whole policy) or "wrong_or_misleading" (a customer relying on it would be misled about what \
+the policy provides);
+- decide whether, by the criterion's own definition and exclusions, those differences make the reply fail. Only a \
+"wrong_or_misleading" statement can fail.
 
 Answer with JSON only:
 {{"checks": [{{"id": 1, "policy_rule": "<verbatim>", "reply_commits_to": "<paraphrase>", \
-"differences": ["<difference>"], "violates_criterion": false}}]}}"""
+"differences": ["<difference>"], "status": "accurate", "violates_criterion": false}}]}}"""
 
 TIEBREAK = _HEADER + _CASE + """
 Two reviewers disagree about whether these statements of the reply violate the criterion:
@@ -311,11 +321,12 @@ Two reviewers disagree about whether these statements of the reply violate the c
 
 For each statement, first write what a customer reading ONLY this reply would reasonably believe they are entitled \
 to or will get, then write what the policy actually provides for that situation (quote it), then say whether the \
-gap is a violation by the criterion's own definition and exclusions.
+gap is a violation by the criterion's own definition and exclusions. Leaving out other information is never a gap; \
+only being misled is.
 
 Answer with JSON only:
 {{"checks": [{{"id": 1, "customer_believes": "<...>", "policy_provides": "<verbatim>", \
-"violates_criterion": false}}]}}"""
+"status": "accurate", "violates_criterion": false}}]}}"""
 
 
 # --------------------------------------------------------------------------------------------- judge
@@ -342,10 +353,16 @@ def _flag_list(items: list[dict]) -> str:
                      f'{_sanitise(str(s.get("reason", "")))[:200]})' for i, s in enumerate(items, 1))
 
 
+def _misleading(d: dict) -> bool:
+    """Precision guard: a violation needs an explicit wrong_or_misleading status (incomplete != wrong)."""
+    st = str(d.get("status", "")).strip().lower()
+    return _truthy(d.get("violates_criterion")) and ("wrong" in st or "mislead" in st)
+
+
 def _confirmed(parsed: dict | None) -> bool | None:
     if not parsed or not isinstance(parsed.get("checks"), list):
         return None
-    return any(isinstance(c, dict) and _truthy(c.get("violates_criterion")) for c in parsed["checks"])
+    return any(isinstance(c, dict) and _misleading(c) for c in parsed["checks"])
 
 
 def judge(question: str, reply: str, lang: str, criterion: str, policy: str) -> str:  # noqa: ARG001 (lang unused)
@@ -365,10 +382,10 @@ def judge(question: str, reply: str, lang: str, criterion: str, policy: str) -> 
         stmts = []
         rec["audit_raw"] = raw1[:500]
     # precision guard: a flag counts only if its quote is really in the reply and a concrete deviation is named
-    flagged = [s for s in stmts if isinstance(s, dict) and _truthy(s.get("violates_criterion"))
+    flagged = [s for s in stmts if isinstance(s, dict) and _misleading(s)
                and any(_truthy(s.get(k)) for k in _DEVIATIONS)
                and _quote_in(str(s.get("reply_quote", "")), reply)]
-    rec["audit"] = [{k: s.get(k) for k in ("reply_quote", "violates_criterion", "reason", *_DEVIATIONS, "favours")}
+    rec["audit"] = [{k: s.get(k) for k in ("reply_quote", "status", "violates_criterion", "reason", *_DEVIATIONS, "favours")}
                     for s in stmts if isinstance(s, dict)]
     rec["n_flagged"] = len(flagged)
 
@@ -379,10 +396,10 @@ def judge(question: str, reply: str, lang: str, criterion: str, policy: str) -> 
         p2 = _parse_json(_llm(VERIFY.format(flagged=flag_txt, **inp), budget, max_tokens=1500))
         c2 = _confirmed(p2)
         rec["verify"] = c2
-        if c2 is True:
-            verdict = "fail"
+        if c2 is not None:
+            verdict = "fail" if c2 else "pass"
         else:
-            # calls 1 and 2 disagree (or call 2 unreadable): third, differently framed check; majority of three
+            # call 2 unreadable: third, differently framed check decides
             p3 = _parse_json(_llm(TIEBREAK.format(flagged=flag_txt, **inp), budget, max_tokens=1200))
             c3 = _confirmed(p3)
             rec["tiebreak"] = c3

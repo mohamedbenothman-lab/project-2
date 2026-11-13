@@ -121,7 +121,7 @@ def eval2() -> None:
 
 def final(c1: str, c2: str) -> None:
     c1, c2 = os.path.abspath(c1), os.path.abspath(c2)
-    sub = os.path.join(os.path.dirname(ROOT), "submission")
+    sub = os.path.join(ROOT, "submission")  # Project_3/submission, next to SUBMISSION.md
     os.makedirs(sub, exist_ok=True)
     jobs = []
     for run in (1, 2):

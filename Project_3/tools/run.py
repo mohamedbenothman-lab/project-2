@@ -131,7 +131,8 @@ def final(c1: str, c2: str) -> None:
             out = os.path.join(sub, f"criterion{n}_run{run}.csv")
             env = dict(os.environ, JUDGE_RUN_TAG=f"final_c{n}_run{run}")
             cmd = [PY, "run_judge.py", "--judge", "final_judge.py", "--pairs", pairs, "--criterion", crit,
-                   "--policy", "policy.md", "--dev", dev, "--workers", os.environ.get("FINAL_WORKERS", "5"), "--out", out]
+                   "--policy", "policy.md", "--dev", dev, "--workers", os.environ.get("FINAL_WORKERS", "5"), "--out", out,
+                   "--seed", str(run)]  # official instructions: --seed 1 / --seed 2
             jobs.append((out, subprocess.Popen(cmd, cwd=SP, env=env)))
     t = time.time()
     bad = [out for out, p in jobs if p.wait() != 0]

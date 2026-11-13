@@ -40,7 +40,7 @@ import urllib.request
 
 REQUIRED_MODEL = "claude-haiku-4.5"
 MAX_CALLS_PER_REPLY = 3
-VARIANT = "D"  # CANDIDATE (not frozen). Ablations kept for the recipe: A = audit+verify, B = A + holistic must agree, C = holistic only
+VARIANT = "M"  # CANDIDATE (not frozen). M = majority of C, D and the claim audit. Ablations kept for the recipe: A = audit+verify, B = A + holistic must agree, C = holistic only
 MAX_EXAMPLE_GROUPS = 0  # FROZEN: examples made haiku over-strict on hold-out (see EXPERIMENTS.md); 0 = none
 MAX_INPUT_CHARS = 6000          # cap absurd lengths
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
@@ -401,6 +401,29 @@ def judge(question: str, reply: str, lang: str, criterion: str, policy: str) -> 
     inp = _whitelist_input(question, reply)
     rec: dict = {"variant": VARIANT, "reply_sha": __import__("hashlib").sha256(reply.encode()).hexdigest()[:12],
                  "nums_in": inp["nums_in"], "nums_out": inp["nums_out"]}
+
+    if VARIANT == "M":
+        # majority of three independent views, evaluated lazily inside the 3-call budget:
+        # C (one-word holistic) and D (short reasoning) first; only if they disagree does the claim audit decide.
+        wc = _llm(HOLISTIC.format(**inp), budget, max_tokens=8).strip().strip("*.`'\" ").upper()
+        vc = "pass" if wc.startswith("PASS") else "fail"
+        wd = _final_word(_llm(REASONED.format(**inp), budget, max_tokens=500))
+        vd = "fail" if wd == "FAIL" else "pass"
+        rec.update(c=vc, d=vd)
+        if vc == vd:
+            verdict = vc
+        else:
+            p1 = _parse_json(_llm(AUDIT.format(**inp), budget, max_tokens=1800))
+            stmts = p1.get("statements") if p1 else None
+            stmts = stmts if isinstance(stmts, list) else []
+            flagged = [x for x in stmts if isinstance(x, dict) and _misleading(x)
+                       and any(_truthy(x.get(k)) for k in _DEVIATIONS)
+                       and _quote_in(str(x.get("reply_quote", "")), reply)]
+            rec["audit_flagged"] = len(flagged)
+            verdict = "fail" if flagged else "pass"
+        rec.update(verdict=verdict, calls=budget.n)
+        _log(rec)
+        return verdict
 
     if VARIANT == "D":
         raw = _llm(REASONED.format(**inp), budget, max_tokens=500)

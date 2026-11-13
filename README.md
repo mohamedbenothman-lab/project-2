@@ -1,4 +1,4 @@
-# Project 3: Judge the Judge (SIXT Hackathon 2026)
+# Team Tougypt · Project 3: Judge the Judge (SIXT Hackathon 2026)
 
 A reusable recipe for an LLM judge of customer-support replies on `claude-haiku-4.5`. It judges one reply at a time,
 has nothing criterion-specific in code, and runs unchanged on the surprise criterion.

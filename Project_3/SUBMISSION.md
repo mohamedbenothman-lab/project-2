@@ -1,7 +1,7 @@
-# Submission: Project 3 – Judge the Judge
+# Submission: Team Tougypt – Project 3: Judge the Judge
 
 ## Authors
-**Team name:** <TEAM NAME>
+**Team name:** Tougypt
 
 **Project:** Project 3: Judge the Judge – a recipe for building LLM judges you can trust
 

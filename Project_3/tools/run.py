@@ -101,7 +101,7 @@ def run_judge(judge: str, pairs: str, crit: str, dev: str | None, out: str, tag:
 def eval1() -> None:
     holdout("dev_pairs.jsonl", "dev_pairs.jsonl", "ho1.jsonl")
     t = time.time()
-    sh(*run_judge("final_judge.py", "ho1.jsonl", "JUDGE1_CRITERION.md", "dev_pairs.jsonl", "ho1.csv", "eval1"))
+    sh(*run_judge(os.environ.get("JUDGE_FILE", "final_judge.py"), "ho1.jsonl", "JUDGE1_CRITERION.md", "dev_pairs.jsonl", "ho1.csv", "eval1"))
     print(f"wall time {time.time() - t:.0f}s")
     sh(PY, "score.py", "ho1.csv", "ho1.jsonl", "--baseline", "baseline_dev_verdicts.csv")
     sh(PY, "diagnose.py", "ho1.csv", "ho1.jsonl")
@@ -113,7 +113,7 @@ def eval2() -> None:
     if not os.path.exists(os.path.join(SP, "ho2_base.csv")):
         sh(*run_judge("baseline_judge.py", "ho2.jsonl", crit, None, "ho2_base.csv", "eval2_base"))
     t = time.time()
-    sh(*run_judge("final_judge.py", "ho2.jsonl", crit, os.path.join("surprise", "dev_pairs.jsonl"), "ho2.csv", "eval2"))
+    sh(*run_judge(os.environ.get("JUDGE_FILE", "final_judge.py"), "ho2.jsonl", crit, os.path.join("surprise", "dev_pairs.jsonl"), "ho2.csv", "eval2"))
     print(f"wall time {time.time() - t:.0f}s")
     print("--- baseline on surprise hold-out"); sh(PY, "score.py", "ho2_base.csv", "ho2.jsonl")
     print("--- ours on surprise hold-out"); sh(PY, "score.py", "ho2.csv", "ho2.jsonl", "--baseline", "ho2_base.csv")

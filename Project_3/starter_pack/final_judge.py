@@ -1,4 +1,11 @@
-"""final_judge.py: claim-audit judge for one customer-support reply at a time.
+"""final_judge.py: judge for one customer-support reply at a time.
+
+FROZEN CONFIGURATION (decided from hold-out runs logged in EXPERIMENTS.md): VARIANT "C" = one sanitised, whitelisted
+prompt (criterion + policy + customer message + reply + code-extracted number evidence) answered with one word,
+temperature 0, 1 call per reply. The claim-audit pipeline below (variants A/B) is kept as a documented ablation: it
+won on criterion 1 but over-rejected good replies on the surprise criterion.
+
+Original design notes (claim-audit pipeline):
 
 Recipe (see RECIPE.md):
   1. Code builds the judge input from a whitelist (criterion, policy, labelled examples, customer message, ONE reply),
@@ -33,8 +40,8 @@ import urllib.request
 
 REQUIRED_MODEL = "claude-haiku-4.5"
 MAX_CALLS_PER_REPLY = 3
-VARIANT = os.environ.get("JUDGE_VARIANT", "B")  # A: audit+verify; B: + holistic must agree; C: holistic only
-MAX_EXAMPLE_GROUPS = int(os.environ.get("JUDGE_EXAMPLES", "9"))  # example pairs shown (0 = none); deterministic
+VARIANT = "C"  # FROZEN. Ablations kept for the recipe: A = audit+verify, B = A + holistic must agree, C = holistic only
+MAX_EXAMPLE_GROUPS = 0  # FROZEN: examples made haiku over-strict on hold-out (see EXPERIMENTS.md); 0 = none
 MAX_INPUT_CHARS = 6000          # cap absurd lengths
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
 

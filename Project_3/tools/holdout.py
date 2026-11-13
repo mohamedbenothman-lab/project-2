@@ -2,8 +2,8 @@
 Usage: python3 tools/holdout.py PAIRS DEV OUT   (run from Project_3/)"""
 import json, os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "starter_pack"))
-os.environ["JUDGE_EXAMPLES"] = "9"  # fixed hold-out split, independent of the example toggle
 import final_judge as fj
+fj.MAX_EXAMPLE_GROUPS = 9  # fixed hold-out split: exclude sources of the 9 default example pairs
 pairs, dev, out = sys.argv[1:4]
 P = [json.loads(l) for l in open(pairs, encoding="utf-8") if l.strip()]
 D = [json.loads(l) for l in open(dev, encoding="utf-8") if l.strip()]

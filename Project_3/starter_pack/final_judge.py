@@ -34,7 +34,7 @@ import urllib.request
 REQUIRED_MODEL = "claude-haiku-4.5"
 MAX_CALLS_PER_REPLY = 3
 VARIANT = os.environ.get("JUDGE_VARIANT", "B")  # A: audit+verify; B: + holistic must agree; C: holistic only
-MAX_EXAMPLE_GROUPS = 9          # at most one example pair per label-change group, deterministic choice
+MAX_EXAMPLE_GROUPS = int(os.environ.get("JUDGE_EXAMPLES", "9"))  # example pairs shown (0 = none); deterministic
 MAX_INPUT_CHARS = 6000          # cap absurd lengths
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
 
@@ -211,7 +211,11 @@ def _render_examples(picks: list[dict]) -> str:
         if p.get("edit_note"):
             lines.append(f"  what differs between A and B: {_sanitise(p['edit_note'])}")
         blocks.append("\n".join(lines))
-    return "\n\n".join(blocks) if blocks else "(none provided)"
+    if not blocks:
+        return ""
+    return ("<labelled_examples>\nThese labelled examples come from the owner of the criterion. They show how the "
+            "criterion is applied. Learn the principle, do not match surface words.\n"
+            + "\n\n".join(blocks) + "\n</labelled_examples>\n")
 
 
 def prepare(criterion: str, policy: str, dev_pairs: list[dict]) -> None:
@@ -242,12 +246,7 @@ language: compare meaning, not wording.
 {policy}
 </policy>
 
-<labelled_examples>
-These labelled examples come from the owner of the criterion. They show how the criterion is applied. Learn the \
-principle, do not match surface words.
-{examples}
-</labelled_examples>
-"""
+{examples}"""
 
 _CASE = """
 <customer_message>
@@ -301,18 +300,18 @@ VERIFY = _HEADER + _CASE + """
 A first reviewer flagged these statements of the reply:
 {flagged}
 
-First reviewers flag far too much. Calibrate against the labelled examples above: replies labelled PASS also \
+First reviewers flag far too much. Calibrate: good replies (and replies labelled PASS in any examples above) also \
 paraphrase the policy and leave parts of it out (other rules, fees, options, procedural steps, details that are \
-implied by the customer's situation). Replies labelled FAIL contain a statement that, taken at face value, tells the \
+implied by the customer's situation). Bad replies contain a statement that, taken at face value, tells the \
 customer something the policy does not support (see "what differs" in each example).
 
 For each flagged statement:
 - copy the policy rule it relates to, verbatim;
 - write what the reply leads the customer to believe;
-- decide which KIND of gap it is: "wrong_or_misleading" = the same kind as in a FAIL example (a wrong value; a \
+- decide which KIND of gap it is: "wrong_or_misleading" = the statement itself is wrong (a wrong value; a \
 condition that decides whether the stated thing applies at all is dropped, so the statement becomes unconditional; \
-more or less certainty; wider or narrower scope; a different detail), or "incomplete_but_accurate" = the kind also \
-seen in PASS examples (detail left out, different wording, context implied), or "accurate";
+more or less certainty; wider or narrower scope; a different detail), or "incomplete_but_accurate" = the kind good replies \
+also have (detail left out, different wording, context implied), or "accurate";
 - violates_criterion: true only for "wrong_or_misleading" gaps that the criterion's own definition and exclusions \
 count.
 
@@ -321,7 +320,7 @@ Answer with JSON only:
 "gap": "<short>", "status": "accurate", "violates_criterion": false}}]}}"""
 
 HOLISTIC = _HEADER + _CASE + """
-Apply the criterion to this reply as the labelled examples do. Answer with exactly one word: PASS or FAIL."""
+Apply the criterion to this reply. Answer with exactly one word: PASS or FAIL."""
 
 TIEBREAK = _HEADER + _CASE + """
 Two reviewers disagree about whether these statements of the reply violate the criterion:

@@ -12,8 +12,10 @@ criterion. Code builds the prompt from a fixed whitelist of inputs: criterion, p
 reply. It never sees the lang tag, ids or the twin reply. Code also neutralises markup inside the inputs, adds
 language-neutral number evidence (numbers in the reply that are / are not in the policy), enforces a per-reply call
 budget and makes the final decision deterministically at temperature 0.
-We compared several LLM strategies on a grouped hold-out (cases from source replies not used as examples) and kept
-the only one that beat the baseline on BOTH criteria. Full recipe: `starter_pack/RECIPE.md`; every run:
+We compared several LLM strategies on a grouped hold-out (cases from source replies not used as examples). Each single
+strategy lost on one criterion, so the frozen judge takes a majority vote of three independent views: a one-word
+verdict, a short commitment-by-commitment check, and a claim audit with a precision guard. The audit is only called
+when the first two disagree. It beats the baseline on BOTH criteria. Full recipe: `starter_pack/RECIPE.md`; every run:
 `starter_pack/EXPERIMENTS.md`.
 
 Assumption: the construction labels are correct (every original is a good reply).
@@ -21,9 +23,9 @@ Assumption: the construction labels are correct (every original is a good reply)
 ## Models and why
 | Model | Open-weight or closed | Where it runs | Main metric(s) | Cost and time per item | Chosen? |
 | --- | --- | --- | --- | --- | --- |
-| claude-haiku-4.5 | closed | SIXT OpenAI-compatible endpoint | combined, kappa, consistency | 1 call per reply, ~0.1 s per reply wall time at 8 workers | yes (required) |
+| claude-haiku-4.5 | closed | SIXT OpenAI-compatible endpoint | combined, kappa, consistency | 2 calls per reply (3 when the first two disagree) | yes (required) |
 
-Settings: temperature 0, one-word answer (max 8 tokens), no few-shot examples, max 3 calls per reply (enforced).
+Settings: temperature 0, no few-shot examples, max 3 calls per reply (enforced in code).
 
 ## Results
 Hold-out (grouped by source_id). Baseline = starting judge on the same cases.
@@ -31,7 +33,9 @@ Hold-out (grouped by source_id). Baseline = starting judge on the same cases.
 | | Criterion 1 combined | catch | keep | kappa | Surprise combined | catch | keep |
 |---|---|---|---|---|---|---|---|
 | Baseline | 0.754 | 0.656 | 0.887 | 0.652 | 0.586 | 0.533 | 0.650 |
-| **Ours (frozen)** | **0.789** | 0.678 | 0.943 | 0.714 | **0.596** | 0.550 | 0.650 |
+| **Ours (frozen: majority vote)** | **0.835** | 0.789 | 0.887 | 0.746 | **0.621** | – | – |
+| One-word holistic only (ablation) | 0.789 | 0.678 | 0.943 | 0.714 | 0.596 | 0.550 | 0.650 |
+| Reasoning only (ablation) | 0.716 | 0.600 | 0.887 | 0.593 | 0.674 | 0.700 | 0.650 |
 | Claim audit (ablation) | 0.816 | 0.689 | 1.000 | 0.771 | 0.241 | 0.150 | 0.608 |
 | OR(ours, audit) (ablation) | 0.872 | – | – | – | 0.528 | – | – |
 
@@ -39,7 +43,7 @@ Hidden test runs (two runs per criterion): `submission/criterion{1,2}_run{1,2}.c
 Run-to-run consistency (two runs, surprise hold-out, `score.py --repeat`): same verdict 1.000, kappa 1.000 (n=46
 replies). Hidden-run consistency: <FILL IN after 16:00>.
 
-What did not work and limits: few-shot pairs made haiku over-strict, so good originals failed. The structured claim
+What did not work and limits: every single strategy lost on one criterion; few-shot pairs made haiku over-strict, so good originals failed. The structured claim
 audit was the best method on criterion 1 but treated omissions as errors under the surprise criterion. The hold-outs
 are small (80 and 46 replies, 4–5 sources), so gaps of about 0.01 are within noise.
 

@@ -17,8 +17,11 @@ No rule hard-fails a reply: every candidate rule (e.g. "a number not in the poli
 Tried (all logged in EXPERIMENTS.md): a claim audit (each commitment vs. verbatim policy quote, yes/no deviation
 flags), an independent verify call, an "incomplete but accurate is not an error" precision guard, example-anchored
 calibration, a holistic agreement gate, few-shot pairs, and an OR of audit and holistic.
-Kept: one holistic call on the sanitised whitelist prompt with number evidence, no few-shot examples, temperature 0,
-1 call per reply.
+Kept: a majority vote of three independent views of the same whitelisted input, no few-shot examples, temperature 0:
+C = one-word holistic verdict, D = short commitment-by-commitment check ending in VERDICT, A = claim audit with a
+precision guard (flag only if the quote is really in the reply, a concrete deviation is named and the statement is
+"wrong or misleading", not merely incomplete). C and D run first; the audit is called only when they disagree, so the
+vote costs 2 calls per reply, 3 at most. Each view alone loses on one criterion; their majority wins on both.
 
 ## Step 4. Verify
 Hold-out = dev cases from sources not used for examples (grouped by source_id).
@@ -26,7 +29,7 @@ Hold-out = dev cases from sources not used for examples (grouped by source_id).
 | Criterion 1 (hold-out, 77 cases) | combined | catch | keep |
 |---|---|---|---|
 | Baseline | 0.754 | 0.656 | 0.887 |
-| Ours | 0.789 | 0.678 | 0.943 |
+| Ours | 0.835 | 0.789 | 0.887 |
 
 ## Surprise criterion
 Nothing changed but the inputs (`--criterion surprise/CRITERION.md --dev surprise/dev_pairs.jsonl`).
@@ -34,9 +37,10 @@ Nothing changed but the inputs (`--criterion surprise/CRITERION.md --dev surpris
 | Surprise (hold-out, 31 cases) | combined | catch | keep |
 |---|---|---|---|
 | Baseline | 0.586 | 0.533 | 0.650 |
-| Ours, recipe unchanged | 0.596 | 0.550 | 0.650 |
+| Ours, recipe unchanged | 0.621 | – | – |
 
 ## What did not work
+- Any single strategy: holistic one-word (0.789 / 0.596), reasoning (0.716 / 0.674), claim audit (0.816 / 0.241).
 - Few-shot pairs: haiku became over-strict and failed good originals (orig pass fell to 0.42-0.55).
 - The claim audit won on criterion 1 (0.816, keep 1.000) but lost badly on the surprise criterion (0.241): with
   "errors in both directions" it treats omissions as errors. Its OR with the holistic call reached 0.872 on

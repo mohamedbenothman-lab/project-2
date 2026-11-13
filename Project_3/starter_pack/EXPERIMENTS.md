@@ -40,3 +40,13 @@ Findings
 ## Consistency
 Two runs of the frozen judge on the surprise hold-out: same verdict 1.000, kappa 1.000 (n=46 replies).
 Re-runs of eval1/eval2 at 15:31-15:33 reproduced 0.789 / 0.596 exactly.
+
+## Round 2 (15:37-15:41): reasoning variant and voting
+| run | criterion 1 | surprise | notes |
+|---|---|---|---|
+| D: short commitment-by-commitment reasoning, then VERDICT (1 call) | 0.716 | 0.674 | catch up on surprise, down on crit. 1 |
+| OR(C, D) offline | 0.779 | 0.621 | |
+| AND(C, D) offline | 0.676 | 0.652 | |
+| MAJ(C, D, A) offline (exact A needs up to 4 calls) | 0.882 | 0.642 | |
+| **M: lazy MAJ in code, <=3 calls (A = audit step only when C != D) — FROZEN** | **0.835** (catch 0.789, keep 0.887, kappa 0.746) | **0.621** | consistency 1.000 (46 replies, 2 runs) |
+Decision: M beats C (0.789 / 0.596) on BOTH criteria -> frozen at 15:41 (commit f2871e9).

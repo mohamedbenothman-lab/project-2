@@ -36,8 +36,8 @@ Hold-out (grouped by source_id). Baseline = starting judge on the same cases.
 | OR(ours, audit) (ablation) | 0.872 | – | – | – | 0.528 | – | – |
 
 Hidden test runs (two runs per criterion): `submission/criterion{1,2}_run{1,2}.csv`.
-Run-to-run consistency on the hidden runs: <FILL IN from `score.py run1.csv pairs --repeat run2.csv` if labels are
-released, else the share of identical verdicts>.
+Run-to-run consistency (two runs, surprise hold-out, `score.py --repeat`): same verdict 1.000, kappa 1.000 (n=46
+replies). Hidden-run consistency: <FILL IN after 16:00>.
 
 What did not work and limits: few-shot pairs made haiku over-strict, so good originals failed. The structured claim
 audit was the best method on criterion 1 but treated omissions as errors under the surprise criterion. The hold-outs

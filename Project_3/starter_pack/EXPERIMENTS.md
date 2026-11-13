@@ -36,3 +36,7 @@ Findings
   ("errors in both directions") it flags omissions in good replies as errors and misses edits.
 - Decision rule (stated in advance): keep a change only if it beats the baseline on BOTH criteria -> C, 0 examples.
 - Caveat: hold-outs are small (80 / 46 replies, 4 / 5 sources), so differences of ~0.01 are within noise.
+
+## Consistency
+Two runs of the frozen judge on the surprise hold-out: same verdict 1.000, kappa 1.000 (n=46 replies).
+Re-runs of eval1/eval2 at 15:31-15:33 reproduced 0.789 / 0.596 exactly.

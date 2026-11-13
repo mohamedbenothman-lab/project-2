@@ -41,7 +41,7 @@ Hold-out (grouped by source_id). Baseline = starting judge on the same cases.
 
 Hidden test runs (two runs per criterion): `submission/criterion{1,2}_run{1,2}.csv`.
 Run-to-run consistency (two runs, surprise hold-out, `score.py --repeat`): same verdict 1.000, kappa 1.000 (n=46
-replies). Hidden-run consistency: <FILL IN after 16:00>.
+replies). Hidden test runs: 291 + 311 cases, same verdict in run 1 and run 2 for 100% of cases on both criteria.
 
 What did not work and limits: every single strategy lost on one criterion; few-shot pairs made haiku over-strict, so good originals failed. The structured claim
 audit was the best method on criterion 1 but treated omissions as errors under the surprise criterion. The hold-outs

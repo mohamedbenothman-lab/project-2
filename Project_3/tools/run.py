@@ -90,7 +90,7 @@ def holdout(pairs: str, dev: str, out: str) -> None:
 
 
 def run_judge(judge: str, pairs: str, crit: str, dev: str | None, out: str, tag: str) -> list[str]:
-    os.environ["JUDGE_RUN_TAG"] = tag
+    os.environ["JUDGE_RUN_TAG"] = f"{tag}_{os.environ.get('JUDGE_VARIANT', 'B')}_{time.strftime('%H%M%S')}"
     cmd = [PY, "run_judge.py", "--judge", judge, "--pairs", pairs, "--criterion", crit, "--policy", "policy.md",
            "--workers", WORKERS, "--out", out]
     if dev:

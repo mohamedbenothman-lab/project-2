@@ -33,6 +33,7 @@ import urllib.request
 
 REQUIRED_MODEL = "claude-haiku-4.5"
 MAX_CALLS_PER_REPLY = 3
+VARIANT = os.environ.get("JUDGE_VARIANT", "B")  # A: audit+verify; B: + holistic must agree; C: holistic only
 MAX_EXAMPLE_GROUPS = 9          # at most one example pair per label-change group, deterministic choice
 MAX_INPUT_CHARS = 6000          # cap absurd lengths
 LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs")
@@ -297,23 +298,30 @@ Answer with JSON only, no prose:
 "status": "accurate", "violates_criterion": false, "reason": "<max 20 words>"}}]}}"""
 
 VERIFY = _HEADER + _CASE + """
-A first reviewer says these statements of the reply violate the criterion:
+A first reviewer flagged these statements of the reply:
 {flagged}
 
-Check each one independently; the first reviewer may be right or wrong. For each statement:
-- copy the complete policy rule it relates to, verbatim;
-- write exactly what the reply commits the company to in that statement (include any condition it keeps);
-- list the concrete differences between the two (a condition or limitation the policy attaches but the reply drops \
-counts as a difference; a policy rule the reply does not talk about at all does not);
-- classify the statement: "accurate", "incomplete_but_accurate" (it only leaves out OTHER information; a reply \
-never has to repeat the whole policy) or "wrong_or_misleading" (a customer relying on it would be misled about what \
-the policy provides);
-- decide whether, by the criterion's own definition and exclusions, those differences make the reply fail. Only a \
-"wrong_or_misleading" statement can fail.
+First reviewers flag far too much. Calibrate against the labelled examples above: replies labelled PASS also \
+paraphrase the policy and leave parts of it out (other rules, fees, options, procedural steps, details that are \
+implied by the customer's situation). Replies labelled FAIL contain a statement that, taken at face value, tells the \
+customer something the policy does not support (see "what differs" in each example).
+
+For each flagged statement:
+- copy the policy rule it relates to, verbatim;
+- write what the reply leads the customer to believe;
+- decide which KIND of gap it is: "wrong_or_misleading" = the same kind as in a FAIL example (a wrong value; a \
+condition that decides whether the stated thing applies at all is dropped, so the statement becomes unconditional; \
+more or less certainty; wider or narrower scope; a different detail), or "incomplete_but_accurate" = the kind also \
+seen in PASS examples (detail left out, different wording, context implied), or "accurate";
+- violates_criterion: true only for "wrong_or_misleading" gaps that the criterion's own definition and exclusions \
+count.
 
 Answer with JSON only:
-{{"checks": [{{"id": 1, "policy_rule": "<verbatim>", "reply_commits_to": "<paraphrase>", \
-"differences": ["<difference>"], "status": "accurate", "violates_criterion": false}}]}}"""
+{{"checks": [{{"id": 1, "policy_rule": "<verbatim>", "customer_believes": "<paraphrase>", \
+"gap": "<short>", "status": "accurate", "violates_criterion": false}}]}}"""
+
+HOLISTIC = _HEADER + _CASE + """
+Apply the criterion to this reply as the labelled examples do. Answer with exactly one word: PASS or FAIL."""
 
 TIEBREAK = _HEADER + _CASE + """
 Two reviewers disagree about whether these statements of the reply violate the criterion:
@@ -370,8 +378,15 @@ def judge(question: str, reply: str, lang: str, criterion: str, policy: str) -> 
         prepare(criterion, policy, [])
     budget = _Budget()
     inp = _whitelist_input(question, reply)
-    rec: dict = {"reply_sha": __import__("hashlib").sha256(reply.encode()).hexdigest()[:12],
+    rec: dict = {"variant": VARIANT, "reply_sha": __import__("hashlib").sha256(reply.encode()).hexdigest()[:12],
                  "nums_in": inp["nums_in"], "nums_out": inp["nums_out"]}
+
+    if VARIANT == "C":
+        word = _llm(HOLISTIC.format(**inp), budget, max_tokens=8).strip().strip("*.`'\" ").upper()
+        verdict = "pass" if word.startswith("PASS") else "fail"
+        rec.update(holistic=word[:10], verdict=verdict, calls=budget.n)
+        _log(rec)
+        return verdict
 
     # Call 1: audit
     raw1 = _llm(AUDIT.format(**inp), budget, max_tokens=1800)
@@ -393,17 +408,17 @@ def judge(question: str, reply: str, lang: str, criterion: str, policy: str) -> 
         verdict = "pass"
     else:
         flag_txt = _flag_list(flagged)
-        p2 = _parse_json(_llm(VERIFY.format(flagged=flag_txt, **inp), budget, max_tokens=1500))
-        c2 = _confirmed(p2)
+        c2 = _confirmed(_parse_json(_llm(VERIFY.format(flagged=flag_txt, **inp), budget, max_tokens=1500)))
         rec["verify"] = c2
-        if c2 is not None:
-            verdict = "fail" if c2 else "pass"
+        if c2 is not True:
+            verdict = "pass"  # not confirmed (or unreadable): the precision guard keeps the reply
+        elif VARIANT == "B":
+            # third, independent holistic check (sees no findings); all three must agree to fail
+            word = _llm(HOLISTIC.format(**inp), budget, max_tokens=8).strip().strip("*.`'\" ").upper()
+            rec["holistic"] = word[:10]
+            verdict = "pass" if word.startswith("PASS") else "fail"
         else:
-            # call 2 unreadable: third, differently framed check decides
-            p3 = _parse_json(_llm(TIEBREAK.format(flagged=flag_txt, **inp), budget, max_tokens=1200))
-            c3 = _confirmed(p3)
-            rec["tiebreak"] = c3
-            verdict = "fail" if c3 is True else "pass"
+            verdict = "fail"
     rec["verdict"], rec["calls"] = verdict, budget.n
     _log(rec)
     return verdict
